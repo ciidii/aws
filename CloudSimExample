@@ -1,0 +1,123 @@
+import org.cloudbus.cloudsim.*;
+import org.cloudbus.cloudsim.core.CloudSim;
+
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
+
+public class CloudSimExample {
+    public static void main(String[] args) {
+        try {
+            // Initialisation du simulateur CloudSim
+            int numUsers = 1; // Nombre d'utilisateurs
+            Calendar calendar = Calendar.getInstance();
+            boolean traceFlag = false; // Désactive les traces détaillées
+
+            CloudSim.init(numUsers, calendar, traceFlag);
+
+            // Création du DataCenter
+            Datacenter datacenter = createDatacenter("Datacenter_0");
+
+            // Création du DataCenterBroker
+            DatacenterBroker broker = new DatacenterBroker("Broker_0");
+
+            // Création des VM (1 VM)
+            int vmId = 0;
+            int mips = 1000;
+            long size = 10000; // Taille en Mo
+            int ram = 512; // RAM en Mo
+            long bw = 1000; // Bande passante en Mbps
+            int pesNumber = 1; // Nombre de cœurs
+            String vmm = "Xen"; // Type de gestionnaire de VM
+
+            Vm vm = new Vm(vmId, broker.getId(), mips, pesNumber, ram, bw, size, vmm, new CloudletSchedulerTimeShared());
+
+            // Ajout de la VM au broker
+            List<Vm> vmList = new ArrayList<>();
+            vmList.add(vm);
+            broker.submitVmList(vmList);
+
+            // Création des Cloudlets (Tâches)
+            int cloudletId = 0;
+            long length = 40000; // Instructions
+            long fileSize = 300; // Taille du fichier
+            long outputSize = 300; // Taille de la sortie
+            UtilizationModel utilizationModel = new UtilizationModelFull();
+
+            Cloudlet cloudlet = new Cloudlet(cloudletId, length, pesNumber, fileSize, outputSize, utilizationModel, utilizationModel, utilizationModel);
+            cloudlet.setUserId(broker.getId());
+
+            // Ajout des tâches au broker
+            List<Cloudlet> cloudletList = new ArrayList<>();
+            cloudletList.add(cloudlet);
+            broker.submitCloudletList(cloudletList);
+
+            // Lancement de la simulation
+            CloudSim.startSimulation();
+
+            // Récupération des résultats
+            List<Cloudlet> newList = broker.getCloudletReceivedList();
+            CloudSim.stopSimulation();
+
+            // Affichage des résultats
+            printCloudletList(newList);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Création d'un DataCenter
+    private static Datacenter createDatacenter(String name) {
+        List<Host> hostList = new ArrayList<>();
+
+        // Création d'un hôte avec 4 cœurs CPU, 16 Go de RAM, 1 To de stockage
+        int hostId = 0;
+        int ram = 16384; // RAM en Mo
+        long storage = 1000000; // Stockage en Mo
+        int bw = 10000; // Bande passante en Mbps
+        int pesNumber = 4; // Nombre de cœurs
+        List<Pe> peList = new ArrayList<>();
+
+        // Ajout des cœurs au processeur
+        int mips = 1000;
+        for (int i = 0; i < pesNumber; i++) {
+            peList.add(new Pe(i, new PeProvisionerSimple(mips)));
+        }
+
+        // Création de l'hôte
+        hostList.add(new Host(hostId, new RamProvisionerSimple(ram), new BwProvisionerSimple(bw), storage, peList, new VmSchedulerTimeShared(peList)));
+
+        // Création du DataCenter
+        String arch = "x86"; // Architecture
+        String os = "Linux"; // Système d'exploitation
+        String vmm = "Xen"; // Gestionnaire de VM
+        double time_zone = 10.0; // Fuseau horaire
+        double cost = 3.0; // Coût par VM
+        double costPerMem = 0.05; // Coût par Mo de RAM
+        double costPerStorage = 0.001; // Coût par Mo de stockage
+        double costPerBw = 0.0; // Coût par Mbps de bande passante
+
+        DatacenterCharacteristics characteristics = new DatacenterCharacteristics(arch, os, vmm, hostList, time_zone, cost, costPerMem, costPerStorage, costPerBw);
+
+        return new Datacenter(name, characteristics, new VmAllocationPolicySimple(hostList), new ArrayList<>(), 0);
+    }
+
+    // Affichage des résultats
+    private static void printCloudletList(List<Cloudlet> list) {
+        String indent = "    ";
+        System.out.println("Résultats de la simulation :");
+        System.out.println("ID" + indent + "STATUT" + indent + "DC_ID" + indent + "VM_ID" + indent + "TIME");
+
+        for (Cloudlet cloudlet : list) {
+            System.out.print(cloudlet.getCloudletId() + indent);
+
+            if (cloudlet.getStatus() == Cloudlet.SUCCESS) {
+                System.out.println("SUCCESS" + indent +
+                        cloudlet.getResourceId() + indent +
+                        cloudlet.getVmId() + indent +
+                        cloudlet.getActualCPUTime());
+            }
+        }
+    }
+}
